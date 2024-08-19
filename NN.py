@@ -129,16 +129,18 @@ class Segmentor(nn.Module):
         self.backbone = MAE(hidden)
         if pretrained:
             self.backbone.load_state_dict(torch.load('pretrained_finalstandard.pt'))
-            if frozen:
+            if frozen: # linear probing
                 for param in self.backbone.parameters():
                     param.requires_grad = False
-        self.head = nn.Sequential(
-            nn.Linear(hidden // 2, hidden // 2),
-            nn.ReLU(),
-            nn.Linear(hidden // 2, hidden // 2),
-            nn.ReLU(),
-            nn.Linear(hidden // 2, 32),
-        )
+                self.head = nn.Sequential(
+                    nn.Linear(hidden // 2, 32),
+                )
+            else: # few-shot learning
+                self.head = nn.Sequential(
+                    nn.Linear(hidden // 2, hidden // 2),
+                    nn.ReLU(),
+                    nn.Linear(hidden // 2, 32),
+                )
         self.optimizer = None
 
     def forward(self, data):
