@@ -132,14 +132,14 @@ def load_train_objs(device, lr, weight_decay, hidden):
     transform = T.Compose([T.GenerateMeshNormals(), T.FaceToEdge(), T.NormalizeScale()])
     # load HCP dataset
     HCP_dataset = []
-    for subject in os.listdir('data'):
-        surface = nib.load(f'data/{subject}/T1w/Native/{subject}.L.pial.native.surf.gii')
+    for subject in os.listdir('HCP_data'):
+        surface = nib.load(f'HCP_data/{subject}/T1w/Native/{subject}.L.pial.native.surf.gii')
         pos, face = surface.agg_data()
         pos = torch.from_numpy(pos).to(torch.float32)
         face = torch.from_numpy(face.T).contiguous().to(torch.long)
-        thickness = nib.load(f'data/{subject}/MNINonLinear/Native/{subject}.L.thickness.native.shape.gii').agg_data()
-        curvature = nib.load(f'data/{subject}/MNINonLinear/Native/{subject}.L.curvature.native.shape.gii').agg_data()
-        sulc = nib.load(f'data/{subject}/MNINonLinear/Native/{subject}.L.sulc.native.shape.gii').agg_data()
+        thickness = nib.load(f'HCP_data/{subject}/MNINonLinear/Native/{subject}.L.thickness.native.shape.gii').agg_data()
+        curvature = nib.load(f'HCP_data/{subject}/MNINonLinear/Native/{subject}.L.curvature.native.shape.gii').agg_data()
+        sulc = nib.load(f'HCP_data/{subject}/MNINonLinear/Native/{subject}.L.sulc.native.shape.gii').agg_data()
         x = torch.from_numpy(np.stack([thickness, curvature, sulc], axis=1)).to(torch.float32)
         data = Data(pos=pos, face=face, x=x)
         data = transform(data)
