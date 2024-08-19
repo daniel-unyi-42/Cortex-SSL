@@ -14,14 +14,12 @@ import pandas as pd
 import numpy as np
 import pyvista
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 from torch_geometric.loader import DataLoader
 from torch_geometric.data import Data
-from torch_geometric.utils import k_hop_subgraph
 import torch_geometric.transforms as T
-import torch_geometric.nn as gnn
-from sklearn.metrics import confusion_matrix
+from NN import Segmentor
+
 
 # Parse command-line arguments
 def parse_args():
@@ -54,17 +52,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 torch.manual_seed(123)
 np.random.seed(123)
 
-# Define custom loss and metrics functions
-def get_dice_loss(y_pred, y_true):
-    num_classes = y_pred.shape[1]
-    y_true = F.one_hot(y_true, num_classes=num_classes)
-    y_pred = F.softmax(y_pred, dim=1)
-    loss = 0.0
-    for i in range(num_classes):
-        loss += -2.0 * torch.sum(y_true[:,i] * y_pred[:,i]) / torch.sum(y_true[:,i] + y_pred[:,i])
-    loss /= num_classes
-    return loss
-
+# Define evaluation metrics
 def get_iou_per_class(cm):
     TP = np.diag(cm)
     FP = np.sum(cm, axis=0) - TP
@@ -138,107 +126,6 @@ train_loader = DataLoader(dataset[:num_labeled], batch_size=batch_size, shuffle=
 val_loader = DataLoader(dataset[70:80], batch_size=batch_size)
 test_loader = DataLoader(dataset[80:], batch_size=batch_size)
 
-# Define neural network components
-class GNModule(nn.Module):
-    def __init__(self, indim, outdim):
-        super(GNModule, self).__init__()
-        self.conv = gnn.ChebConv(indim, outdim, K=3)
-        self.act = nn.PReLU()
-        self.bn = gnn.BatchNorm(outdim)
-
-    def forward(self, x, edge_index):
-        x = self.conv(x, edge_index)
-        x = self.act(x)
-        x = self.bn(x)
-        return x
-
-class AutoEncoder(nn.Module):
-    def __init__(self, hidden):
-        super(AutoEncoder, self).__init__()
-        self.mod1 = GNModule(9, hidden)
-        self.mod2 = GNModule(hidden, hidden)
-        self.mod3 = GNModule(hidden, hidden)
-        self.mod4 = GNModule(hidden, hidden // 2)
-        self.x_mlp = nn.Sequential(
-            nn.Linear(hidden // 2, hidden // 2),
-            nn.ReLU(),
-            nn.Linear(hidden // 2, hidden // 2),
-            nn.ReLU(),
-            nn.Linear(hidden // 2, 9),
-        )
-        self.adj_mlp = nn.Sequential(
-            nn.Linear(hidden, hidden // 2),
-            nn.ReLU(),
-            nn.Linear(hidden // 2, hidden // 2),
-            nn.ReLU(),
-            nn.Linear(hidden // 2, 1),
-        )
-        self.optimizer = None
-
-    def forward(self, data):
-        x = torch.cat([data.x, data.pos, data.norm], dim=1)
-        x = self.mod1(x, data.edge_index)
-        x = self.mod2(x, data.edge_index)
-        x = self.mod3(x, data.edge_index)
-        x = self.mod4(x, data.edge_index)
-        return x
-
-class Segmentor(nn.Module):
-    def __init__(self, pretrained, frozen, hidden):
-        super().__init__()
-        self.backbone = AutoEncoder(hidden)
-        if pretrained:
-            self.backbone.load_state_dict(torch.load('pretrained_finalstandard.pt'))
-            if frozen:
-                for param in self.backbone.parameters():
-                    param.requires_grad = False
-        self.head = nn.Sequential(
-            nn.Linear(hidden // 2, hidden // 2),
-            nn.ReLU(),
-            nn.Linear(hidden // 2, hidden // 2),
-            nn.ReLU(),
-            nn.Linear(hidden // 2, 32),
-        )
-        self.optimizer = None
-
-    def forward(self, data):
-        x = self.backbone(data)
-        return self.head(x)
-    
-    def train_step(self, device, loader):
-        self.train()
-        losses = []
-        cms = []
-        for data in loader:
-            self.optimizer.zero_grad()
-            data = data.to(device)
-            out = self(data)
-            loss = F.cross_entropy(out, data.y) + get_dice_loss(out, data.y)
-            losses.append(loss.item())
-            loss.backward()
-            self.optimizer.step()
-            pred = out.argmax(dim=1)
-            cm = confusion_matrix(data.y.detach().cpu().numpy(), pred.detach().cpu().numpy())
-            assert cm.shape[0] == 32 and cm.shape[1] == 32
-            cms.append(cm)
-        return sum(losses) / len(losses), sum(cms)
-    
-    @torch.no_grad()
-    def test(self, device, loader):
-        self.eval()
-        losses = []
-        cms = []
-        for data in loader:
-            data = data.to(device)
-            out = self(data)
-            loss = F.cross_entropy(out, data.y) + get_dice_loss(out, data.y)
-            losses.append(loss.item())
-            pred = out.argmax(dim=1)
-            cm = confusion_matrix(data.y.detach().cpu().numpy(), pred.detach().cpu().numpy())
-            assert cm.shape[0] == 32 and cm.shape[1] == 32
-            cms.append(cm)
-        return sum(losses) / len(losses), sum(cms)
-
 model = Segmentor(pretrained, frozen, hidden).to(device)
 model.optimizer = torch.optim.Adam(model.parameters(), lr=lr) if frozen else torch.optim.SGD(model.parameters(), lr=lr, momentum=0.9)
 print(model)
@@ -252,7 +139,7 @@ for epoch in range(epochs):
     train_losses.append(loss)
     train_accs.append(get_acc(cm))
     train_ious.append(get_dice(cm))
-    loss, cm = model.test(device, val_loader)
+    loss, cm = model.test_step(device, val_loader)
     val_losses.append(loss)
     val_accs.append(get_acc(cm))
     val_ious.append(get_dice(cm))
@@ -266,7 +153,7 @@ for epoch in range(epochs):
 
 # Load the best model and evaluate on the test set
 model.load_state_dict(torch.load(f'{log_path}/model.pt'))
-loss, cm = model.test(device, test_loader)
+loss, cm = model.test_step(device, test_loader)
 acc = get_acc(cm)
 iou = get_dice(cm)
 print(loss, acc, iou)
