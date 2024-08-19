@@ -180,3 +180,61 @@ class Segmentor(nn.Module):
             assert cm.shape[0] == 32 and cm.shape[1] == 32
             cms.append(cm)
         return sum(losses) / len(losses), sum(cms)
+
+
+
+class AgePredictor(nn.Module):
+    def __init__(self, pretrained, frozen, hidden):
+        super().__init__()
+        self.backbone = MAE(hidden)
+        if pretrained:
+            self.backbone.load_state_dict(torch.load('pretrained_finalstandard.pt'))
+            if frozen: # linear probing
+                for param in self.backbone.parameters():
+                    param.requires_grad = False
+                self.head = nn.Sequential(
+                    nn.Linear(hidden // 2, 1),
+                )
+            else: # few-shot learning
+                self.head = nn.Sequential(
+                    nn.Linear(hidden // 2, hidden // 2),
+                    nn.ReLU(),
+                    nn.Linear(hidden // 2, 1),
+                )
+        self.optimizer = None
+
+    def forward(self, data):
+        x = self.backbone(data)
+        # since this is a graph regression task, the node embeddings are pooled to get the graph embedding
+        x = gnn.global_mean_pool(x, data.batch)
+        return self.head(x)
+
+    def train_step(self, device, loader):
+        self.train()
+        losses = []
+        maes = []
+        for data in loader:
+            self.optimizer.zero_grad()
+            data = data.to(device)
+            out = self(data)
+            loss = F.mse_loss(out, data.y)
+            losses.append(loss.item())
+            loss.backward()
+            self.optimizer.step()
+            mae = F.l1_loss(out, data.y)
+            maes.append(mae.item())
+        return sum(losses) / len(losses), sum(maes) / len(maes)
+    
+    @torch.no_grad()
+    def test_step(self, device, loader):
+        self.eval()
+        losses = []
+        maes = []
+        for data in loader:
+            data = data.to(device)
+            out = self(data)
+            loss = F.mse_loss(out, data.y)
+            losses.append(loss.item())
+            mae = F.l1_loss(out, data.y)
+            maes.append(mae.item())
+        return sum(losses) / len(losses), sum(maes) / len(maes)
