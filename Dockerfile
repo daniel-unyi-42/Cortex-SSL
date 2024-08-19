@@ -29,6 +29,7 @@ RUN pip install --no-cache-dir \
     matplotlib \
     seaborn \
     pandas \
+    pyvista \
     nibabel
 
 RUN useradd -m -s /bin/bash daniel
