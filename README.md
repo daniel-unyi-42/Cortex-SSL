@@ -31,7 +31,7 @@ sbatch pretrain.sh
 
 ### Segmentation
 
-To run the segmentation phase, use the provided `segmentation.sh` script with the following command:
+To run the segmentation task, use the provided `segmentation.sh` script with the following command:
  ```bash
  sbatch segmentation.sh
  ```
@@ -55,3 +55,15 @@ We conducted two types of experiments for segmentation:
 In both cases, we used 10 samples for validation and 21 samples for testing.
 
 ### Age Prediction
+
+To run the age prediction task, use the provided `age_prediction.sh` script with the following command:
+ ```bash
+ sbatch age_prediction.sh
+ ```
+Everything is set up similarly to segmentation, but since this is a regression task, we only experimented with **Linear Probing:**
+   - **Configuration:** We used `pretrained=True`, `frozen=True`, and `num_labeled=70`.
+   - **Baseline:** The results were compared with a randomly initialized model (`pretrained=False`, `frozen=False`) with `num_labeled=70`.
+
+## Acknowledgments
+
+The authors are grateful to Petar Veličković for supporting the project with his valuable insights. The work reported in this paper carried out at BME, has been supported by the European Union project RRF-2.3.1-21-2022-00004 within the framework of the Artificial Intelligence National Laboratory. Project no. TKP2021-NVA-02 has been implemented with the support provided by the Ministry of Culture and Innovation of Hungary from the National Research, Development and Innovation Fund, financed under the TKP2021-NVA funding scheme. The presented work of D. Unyi was also supported by the ÚNKP-23-3-II-BME-399 New National Excellence Program of the Ministry for Culture and Innovation from the source of the National Research, Development and Innovation Fund. We thank the Governmental Agency for IT Development (KIFÜ) for the opportunity provided by the Komondor supercomputer, which they operate, and where the computations were performed.
