@@ -9,6 +9,7 @@
 ####################################################################################################
 
 import argparse
+import os
 import pandas as pd
 import numpy as np
 import pyvista
@@ -44,6 +45,8 @@ hidden = 64
 lr = 0.005 if frozen else 0.001
 
 log_path = f'runs/seg/linearprobing/pretrain_{pretrained}' if frozen else f'runs/seg/{num_labeled}-shot/pretrain_{pretrained}'
+if not os.path.exists(log_path):
+    os.makedirs(log_path)
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -95,19 +98,19 @@ y_dict = {
 }
 
 # Load data from files
-feature_dir = 'Mindboggle101_mindboggle_output_tables_20141017/'
-surface_dir = 'surface_labels/'
+feature_dir = 'MindBoggle_data/Mindboggle101_mindboggle_output_tables_20141017'
+surface_dir = 'MindBoggle_data/surface_labels'
 
-df = pd.read_csv('subjects.txt', sep=', ')
+df = pd.read_csv('MindBoggle_data/subjects.txt', sep=', ')
 
 for num, subject in enumerate(df['Mindboggle101'], start=1):
-    reader = pyvista.get_reader(surface_dir + subject + '/lh.labels.DKT31.manual.vtk')
+    reader = pyvista.get_reader(f'{surface_dir}/{subject}/lh.labels.DKT31.manual.vtk')
     mesh = reader.read()
     assert mesh.is_manifold
     # assert mesh.is_all_triangles # not true for all meshes, why?
     pos = mesh.points
     face = mesh.faces.reshape(-1, 4)[:, 1:]  # Extract the faces from the mesh
-    x_df = pd.read_csv(f'{feature_dir}{subject}/left_surface/vertices.csv')
+    x_df = pd.read_csv(f'{feature_dir}/{subject}/left_surface/vertices.csv')
     x = x_df[["FreeSurfer thickness", "FreeSurfer curvature", "FreeSurfer convexity (sulc)"]].to_numpy()
     y = np.array([y_dict[val] for val in mesh.get_array('Labels')])
 
@@ -180,7 +183,7 @@ class AutoEncoder(nn.Module):
         x = self.mod4(x, data.edge_index)
         return x
 
-class GCN(nn.Module):
+class Segmentor(nn.Module):
     def __init__(self, pretrained, frozen, hidden):
         super().__init__()
         self.backbone = AutoEncoder(hidden)
