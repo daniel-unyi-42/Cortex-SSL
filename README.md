@@ -64,6 +64,12 @@ Everything is set up similarly to segmentation, but since this is a regression t
    - **Configuration:** We used `pretrained=True`, `frozen=True`, and `num_labeled=70`.
    - **Baseline:** The results were compared with a randomly initialized model (`pretrained=False`, `frozen=False`) with `num_labeled=70`.
 
+## Accessing the Datasets
+
+The HCP 1200 subjects data release can be easily downloaded following [this repo](https://github.com/jokedurnez/HCP_download) (and don't forget to give it a :star:).
+
+The MindBoggle-101 dataset can be downloaded from [Harvard Dataverse](https://dataverse.harvard.edu/dataverse/mindboggle).
+
 ## Acknowledgments
 
 The authors are grateful to Petar Veličković for supporting the project with his valuable insights. The work reported in this paper carried out at BME, has been supported by the European Union project RRF-2.3.1-21-2022-00004 within the framework of the Artificial Intelligence National Laboratory. Project no. TKP2021-NVA-02 has been implemented with the support provided by the Ministry of Culture and Innovation of Hungary from the National Research, Development and Innovation Fund, financed under the TKP2021-NVA funding scheme. The presented work of D. Unyi was also supported by the ÚNKP-23-3-II-BME-399 New National Excellence Program of the Ministry for Culture and Innovation from the source of the National Research, Development and Innovation Fund. We thank the Governmental Agency for IT Development (KIFÜ) for the opportunity provided by the Komondor supercomputer, which they operate, and where the computations were performed.
