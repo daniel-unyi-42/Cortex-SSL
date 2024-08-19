@@ -25,7 +25,7 @@ from NN import Segmentor
 def parse_args():
     parser = argparse.ArgumentParser(description="Segmentation model training script")
     parser.add_argument('--pretrained', type=bool, default=True, help='Whether to use a pretrained model')
-    parser.add_argument('--frozen', type=bool, default=True, help='Whether to freeze the pretrained model')
+    parser.add_argument('--frozen', type=bool, default=False, help='Whether to freeze the pretrained model')
     parser.add_argument('--num_labeled', type=int, default=7, help='Number of labeled samples to use')
     args = parser.parse_args()
     return args
@@ -98,6 +98,7 @@ for num, subject in enumerate(df['Mindboggle101'], start=1):
     # assert mesh.is_all_triangles # not true for all meshes, why?
     pos = mesh.points
     face = mesh.faces.reshape(-1, 4)[:, 1:]  # Extract the faces from the mesh
+
     x_df = pd.read_csv(f'{feature_dir}/{subject}/left_surface/vertices.csv')
     x = x_df[["FreeSurfer thickness", "FreeSurfer curvature", "FreeSurfer convexity (sulc)"]].to_numpy()
     y = np.array([y_dict[val] for val in mesh.get_array('Labels')])
@@ -145,14 +146,14 @@ for epoch in range(epochs):
     val_ious.append(get_dice(cm))
     if loss < val_losses[best_val_index]:
         best_val_index = epoch
-        torch.save(model.state_dict(), f'{log_path}/model.pt')
+        torch.save(model.state_dict(), f'{log_path}/seg_model.pt')
     print(
         epoch, train_losses[-1], train_accs[-1], train_ious[-1],
         val_losses[-1], val_accs[-1], val_ious[-1]
     )
 
 # Load the best model and evaluate on the test set
-model.load_state_dict(torch.load(f'{log_path}/model.pt'))
+model.load_state_dict(torch.load(f'{log_path}/seg_model.pt'))
 loss, cm = model.test_step(device, test_loader)
 acc = get_acc(cm)
 iou = get_dice(cm)
